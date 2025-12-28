@@ -8,3 +8,4 @@ pytest-mock
 webtest
 mock
 raven
+setuptools
