@@ -16,7 +16,7 @@ except Exception:
         metrics_client_from_config,
         error_reporter_from_config,
     )
-    from baseplate.secrets import secrets_store_from_config
+    from baseplate.lib.secrets import secrets_store_from_config
 
 from .dispatcher import MessageDispatcher
 from .socketserver import SocketServer

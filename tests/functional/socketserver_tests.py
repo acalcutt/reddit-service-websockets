@@ -1,6 +1,6 @@
 import unittest
 
-from baseplate.secrets import SecretsStore
+from baseplate.lib.secrets import SecretsStore
 import webtest
 from mock import Mock, patch
 
