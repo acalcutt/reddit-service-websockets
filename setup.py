@@ -9,7 +9,7 @@ setup(
     install_requires=[
         "gevent",
         "gevent-websocket",
-        "haigha",
+        "pika>=1.3.2,<2",
         "baseplate",
         "manhole",
     ],

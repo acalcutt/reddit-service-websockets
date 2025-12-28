@@ -1,7 +1,7 @@
 """Unit tests for SocketServer."""
 import unittest
 
-from baseplate.secrets import SecretsStore
+from baseplate.lib.secrets import SecretsStore
 import geventwebsocket.websocket
 from geventwebsocket.websocket import WebSocket
 from mock import (

@@ -1,6 +1,6 @@
 import unittest
 
-from baseplate.secrets import SecretsStore
+from baseplate.lib.secrets import SecretsStore
 import webtest
 from mock import Mock, patch
 
@@ -26,14 +26,14 @@ class WebsocketServiceTests(unittest.TestCase):
     def test_health(self):
         resp = self.test_app.get('/health')
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.body, '{"status": "OK", "connections": 0}')
+        self.assertEqual(resp.body.decode('utf-8'), '{"status": "OK", "connections": 0}')
 
     def test_quiesce_fails_get(self):
         resp = self.test_app.get('/quiesce',
-                                 expect_errors=True,
-                                 headers={})
+                     expect_errors=True,
+                     headers={})
         self.assertEqual(resp.status_code, 400)
-        self.assertEqual(resp.body, NOT_WEBSOCKET_RESP_BODY)
+        self.assertEqual(resp.body.decode('utf-8'), NOT_WEBSOCKET_RESP_BODY)
 
     def test_quiesce_unauthorized(self):
         resp = self.test_app.post('/quiesce',
@@ -46,31 +46,31 @@ class WebsocketServiceTests(unittest.TestCase):
             'Authorization': 'Basic ' + self.app.admin_auth
         }
         resp = self.test_app.post('/quiesce',
-                                  headers=auth_header)
+                      headers=auth_header)
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(self.app.quiesced)
 
     def test_already_quiesced_app(self):
         self.app.quiesced = True
         resp = self.test_app.post('/quiesce',
-                                  expect_errors=True,
-                                  headers={})
+                      expect_errors=True,
+                      headers={})
         self.assertEqual(resp.status_code, 410)
-        self.assertEqual(resp.body, '{"status": "quiesced", "connections": 0}')
+        self.assertEqual(resp.body.decode('utf-8'), '{"status": "quiesced", "connections": 0}')
 
     def test_quiesced_returns_conn_count(self):
         self.app.quiesced = True
         self.app.connections = set([Mock(), Mock()])
         resp = self.test_app.get('/health',
-                                 expect_errors=True,
-                                 headers={})
+                     expect_errors=True,
+                     headers={})
         self.assertEqual(resp.status_code, 410)
-        self.assertEqual(resp.body, '{"status": "quiesced", "connections": 2}')
+        self.assertEqual(resp.body.decode('utf-8'), '{"status": "quiesced", "connections": 2}')
         # Remove a connection and check for updated count in response
         self.app.connections.pop()
         resp = self.test_app.get('/health',
-                                 expect_errors=True,
-                                 headers={})
+                     expect_errors=True,
+                     headers={})
         self.assertEqual(resp.status_code, 410)
-        self.assertEqual(resp.body, '{"status": "quiesced", "connections": 1}')
+        self.assertEqual(resp.body.decode('utf-8'), '{"status": "quiesced", "connections": 1}')
 

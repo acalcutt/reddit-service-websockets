@@ -1,16 +1,13 @@
 import logging
 import sys
-import urllib.parse
+import urlparse
 
 import gevent
 import geventwebsocket
 import geventwebsocket.handler
 from geventwebsocket.websocket import WebSocket
 
-try:
-    from baseplate.lib.crypto import validate_signature, SignatureError
-except Exception:
-    from baseplate.crypto import validate_signature, SignatureError
+from baseplate.crypto import validate_signature, SignatureError
 from raven.utils.wsgi import get_current_url, get_headers, get_environ
 
 from .patched_websocket import read_frame as patched_read_frame
@@ -81,7 +78,7 @@ class WebSocketHandler(geventwebsocket.handler.WebSocketHandler):
         try:
             namespace = self.environ["PATH_INFO"]
             query_string = self.environ["QUERY_STRING"]
-            params = urllib.parse.parse_qs(query_string, strict_parsing=True)
+            params = urlparse.parse_qs(query_string, strict_parsing=True)
             signature = params["m"][0]
 
             secret = app.secrets.get_versioned("secret/websockets/authorization_key")
@@ -160,8 +157,8 @@ class SocketServer(object):
 
         if self.quiesced:
             start_response("410 Gone", [])
-            return [('{"status": "quiesced", "connections": %d}' %
-                len(self.connections)).encode('utf-8')]
+            return ['{"status": "quiesced", "connections": %d}' %
+                    len(self.connections)]
 
         if path_info == '/quiesce' and req_method == 'POST':
             try:
@@ -169,23 +166,23 @@ class SocketServer(object):
                 start_response("200 OK", [
                     ("Content-Type", "application/json"),
                 ])
-                return [('{"remaining": %d}' % len(self.connections)).encode('utf-8')]
+                return ['{"remaining": %d"}' % len(self.connections)]
             except UnauthorizedError as e:
                 start_response("401 Unauthorized", [])
-                return [b"invalid authentication"]
+                return ["invalid authentication"]
 
         if path_info == "/health":
             start_response("200 OK", [
                 ("Content-Type", "application/json"),
             ])
-            return [('{"status": "OK", "connections": %d}' %
-                    len(self.connections)).encode('utf-8')]
+            return ['{"status": "OK", "connections": %d}' %
+                    len(self.connections)]
 
         websocket = environ.get("wsgi.websocket")
         if not websocket:
             self.metrics.counter("conn.rejected.not_websocket").increment()
             start_response("400 Bad Request", [])
-            return [b"you are not a websocket"]
+            return ["you are not a websocket"]
 
         # ensure the application was properly configured to use the custom
         # handler subclass which validates namespace signatures
@@ -241,7 +238,7 @@ class SocketServer(object):
             # Shed shed_rate_per_sec connections every second
             #   after service deregistration delay.
             cur_iter_sec = 0
-            for remaining in range(total_conns, 0, -self.shed_rate_per_sec):
+            for remaining in xrange(total_conns, 0, -self.shed_rate_per_sec):
                 cur_iter_sec += 1
                 # Check if fewer than shed_rate_per_sec conns left
                 #   in set so there's no over-popping.
@@ -251,7 +248,7 @@ class SocketServer(object):
                     num_conns = remaining
                 gevent.spawn_later(cur_iter_sec + shed_delay_secs,
                                    self._shed_connections,
-                                   [conns.pop() for j in range(num_conns)])
+                                   [conns.pop() for j in xrange(num_conns)])
 
             # Terminate the service after shedding
             termination_delay_secs = 10
