@@ -160,8 +160,8 @@ class SocketServer(object):
 
         if self.quiesced:
             start_response("410 Gone", [])
-            return ['{"status": "quiesced", "connections": %d}' %
-                    len(self.connections)]
+            return [('{"status": "quiesced", "connections": %d}' %
+                len(self.connections)).encode('utf-8')]
 
         if path_info == '/quiesce' and req_method == 'POST':
             try:
@@ -169,23 +169,23 @@ class SocketServer(object):
                 start_response("200 OK", [
                     ("Content-Type", "application/json"),
                 ])
-                return ['{"remaining": %d"}' % len(self.connections)]
+                return [('{"remaining": %d}' % len(self.connections)).encode('utf-8')]
             except UnauthorizedError as e:
                 start_response("401 Unauthorized", [])
-                return ["invalid authentication"]
+                return [b"invalid authentication"]
 
         if path_info == "/health":
             start_response("200 OK", [
                 ("Content-Type", "application/json"),
             ])
-            return ['{"status": "OK", "connections": %d}' %
-                    len(self.connections)]
+            return [('{"status": "OK", "connections": %d}' %
+                    len(self.connections)).encode('utf-8')]
 
         websocket = environ.get("wsgi.websocket")
         if not websocket:
             self.metrics.counter("conn.rejected.not_websocket").increment()
             start_response("400 Bad Request", [])
-            return ["you are not a websocket"]
+            return [b"you are not a websocket"]
 
         # ensure the application was properly configured to use the custom
         # handler subclass which validates namespace signatures
