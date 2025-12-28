@@ -11,7 +11,6 @@ class websockets {
     'python-coverage',
     'python-gevent',
     'python-gevent-websocket',
-    'python-haigha',
     'python-manhole',
     'python-mock',
     'python-nose',

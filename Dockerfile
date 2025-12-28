@@ -17,7 +17,6 @@ RUN apt-get update && \
         python-pyramid \
         python-gevent-websocket \
         rabbitmq-server \
-        python-haigha \
         python-setuptools
 
 EXPOSE 9090

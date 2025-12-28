@@ -3,8 +3,8 @@ import logging
 import socket
 
 import gevent
-import haigha.channel_pool
-import haigha.connection
+import pika
+import pika.exceptions
 
 
 LOG = logging.getLogger(__name__)
@@ -36,38 +36,51 @@ class MessageSource(object):
         self.publish_channel = None
 
     def _connect(self):
-        self.connection = haigha.connection.Connection(
+        credentials = pika.PlainCredentials(self.username, self.password)
+        params = pika.ConnectionParameters(
             host=self.host,
             port=self.port,
-            vhost=self.vhost,
-            user=self.username,
-            password=self.password,
-            transport="gevent",
-            logger=LOG,
-            close_cb=self._on_close,
+            virtual_host=self.vhost,
+            credentials=credentials,
         )
 
-        self.publisher = haigha.channel_pool.ChannelPool(self.connection)
+        # Use a blocking connection and drive it from gevent in pump_messages
+        self.connection = pika.BlockingConnection(params)
 
+        # Publisher channel (use a dedicated channel for publishing)
+        self.publish_channel = self.connection.channel()
+
+        # Consumer channel
         self.channel = self.connection.channel()
-        self.channel.exchange.declare(exchange=self.broadcast_exchange, type="fanout")
-        self.channel.queue.declare(
-            exclusive=True,
-            auto_delete=True,
-            durable=False,
-            cb=self._on_queue_created,
-        )
+        self.channel.exchange_declare(exchange=self.broadcast_exchange, exchange_type="fanout")
+        q = self.channel.queue_declare(queue="", exclusive=True, auto_delete=True)
+        queue_name = q.method.queue
+        self.channel.queue_bind(queue=queue_name, exchange=self.broadcast_exchange)
+
+        # Register a consumer that calls into the existing message handler
+        # NOTE: We rely on pump_messages to call process_data_events periodically.
+        self.channel.basic_qos(prefetch_count=1)
+        self.channel.basic_consume(queue=queue_name, on_message_callback=self._on_pika_message, auto_ack=False)
 
     @property
     def connected(self):
         return bool(self.connection)
 
     def _on_queue_created(self, queue_name, *ignored):
-        self.channel.queue.bind(queue=queue_name, exchange=self.broadcast_exchange)
-        self.channel.basic.consume(
-            queue=queue_name,
-            consumer=self._on_message,
-        )
+        # This method is a haigha-style callback and is no longer used with pika.
+        pass
+
+    def _on_pika_message(self, ch, method, properties, body):
+        try:
+            if self.message_handler:
+                decoded = body.decode("utf-8") if isinstance(body, (bytes, bytearray)) else body
+                namespace = method.routing_key
+                self.message_handler(namespace=namespace, message=decoded)
+        finally:
+            try:
+                ch.basic_ack(delivery_tag=method.delivery_tag)
+            except Exception:
+                LOG.exception("failed to ack message")
 
     def _on_message(self, message):
         if self.message_handler:
@@ -85,8 +98,14 @@ class MessageSource(object):
         """Publish a status update to the status exchange."""
         if self.send_status_messages and self.publisher:
             serialized_payload = json.dumps(payload).encode("utf-8")
-            message = haigha.message.Message(serialized_payload)
-            self.publisher.publish(message, self.status_exchange, routing_key=key)
+            try:
+                self.publish_channel.basic_publish(
+                    exchange=self.status_exchange,
+                    routing_key=key,
+                    body=serialized_payload,
+                )
+            except Exception:
+                LOG.exception("failed to publish message")
 
     def pump_messages(self):
         """Maintain a connection to the broker and handle incoming frames.
@@ -101,8 +120,13 @@ class MessageSource(object):
 
                 while self.connected:
                     LOG.debug("pumping")
-                    self.connection.read_frames()
+                    try:
+                        # Process network events for the blocking connection
+                        self.connection.process_data_events(time_limit=1)
+                    except pika.exceptions.AMQPError as exc:
+                        LOG.warning("connection processing failed: %s", exc)
+                        break
                     gevent.sleep()
-            except socket.error as exception:
+            except (socket.error, pika.exceptions.AMQPConnectionError) as exception:
                 LOG.warning("connection failed: %s", exception)
                 gevent.sleep(1)
