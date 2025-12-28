@@ -1,0 +1,7 @@
+pika>=1.4.0
+gevent
+gevent-websocket
+baseplate
+manhole
+pytest
+pytest-mock
