@@ -5,3 +5,5 @@ baseplate
 manhole
 pytest
 pytest-mock
+webtest
+mock
