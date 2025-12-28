@@ -27,8 +27,8 @@ def _encode_bytes(text):
     if isinstance(text, str):
         return text
 
-    if not isinstance(text, str):
-        text = str(text or '')
+    if not isinstance(text, unicode):
+        text = unicode(text or '')
 
     return text.encode('utf-8')
 
@@ -44,7 +44,7 @@ def make_compressed_frame(message, compressor):
 
     `compressor` is a zlib compressor object.
     """
-    binary = not isinstance(message, str)
+    binary = not isinstance(message, (str, unicode))
     opcode = WebSocket.OPCODE_BINARY if binary else WebSocket.OPCODE_TEXT
     if binary:
         message = str(message)

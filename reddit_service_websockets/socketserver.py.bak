@@ -1,6 +1,6 @@
 import logging
 import sys
-import urllib.parse
+import urlparse
 
 import gevent
 import geventwebsocket
@@ -78,7 +78,7 @@ class WebSocketHandler(geventwebsocket.handler.WebSocketHandler):
         try:
             namespace = self.environ["PATH_INFO"]
             query_string = self.environ["QUERY_STRING"]
-            params = urllib.parse.parse_qs(query_string, strict_parsing=True)
+            params = urlparse.parse_qs(query_string, strict_parsing=True)
             signature = params["m"][0]
 
             secret = app.secrets.get_versioned("secret/websockets/authorization_key")
@@ -238,7 +238,7 @@ class SocketServer(object):
             # Shed shed_rate_per_sec connections every second
             #   after service deregistration delay.
             cur_iter_sec = 0
-            for remaining in range(total_conns, 0, -self.shed_rate_per_sec):
+            for remaining in xrange(total_conns, 0, -self.shed_rate_per_sec):
                 cur_iter_sec += 1
                 # Check if fewer than shed_rate_per_sec conns left
                 #   in set so there's no over-popping.
@@ -248,7 +248,7 @@ class SocketServer(object):
                     num_conns = remaining
                 gevent.spawn_later(cur_iter_sec + shed_delay_secs,
                                    self._shed_connections,
-                                   [conns.pop() for j in range(num_conns)])
+                                   [conns.pop() for j in xrange(num_conns)])
 
             # Terminate the service after shedding
             termination_delay_secs = 10
