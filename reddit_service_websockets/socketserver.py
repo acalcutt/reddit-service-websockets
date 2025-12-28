@@ -7,7 +7,10 @@ import geventwebsocket
 import geventwebsocket.handler
 from geventwebsocket.websocket import WebSocket
 
-from baseplate.crypto import validate_signature, SignatureError
+try:
+    from baseplate.lib.crypto import validate_signature, SignatureError
+except Exception:
+    from baseplate.crypto import validate_signature, SignatureError
 from raven.utils.wsgi import get_current_url, get_headers, get_environ
 
 from .patched_websocket import read_frame as patched_read_frame

@@ -3,12 +3,20 @@ import signal
 import gevent
 import manhole
 
-from baseplate import (
-    config,
-    metrics_client_from_config,
-    error_reporter_from_config,
-)
-from baseplate.secrets import secrets_store_from_config
+# Prefer the new `baseplate.lib` API when available, fall back to the
+# older top-level `baseplate` layout for compatibility with older installs.
+try:
+    from baseplate.lib import config as config
+    from baseplate.lib.secrets import secrets_store_from_config
+    from baseplate.lib.metrics import metrics_client_from_config
+    from baseplate.lib.error_reporter import error_reporter_from_config
+except Exception:
+    from baseplate import (
+        config,
+        metrics_client_from_config,
+        error_reporter_from_config,
+    )
+    from baseplate.secrets import secrets_store_from_config
 
 from .dispatcher import MessageDispatcher
 from .socketserver import SocketServer
