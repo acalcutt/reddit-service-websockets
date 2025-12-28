@@ -3,13 +3,15 @@ import signal
 import gevent
 import manhole
 
-# Prefer the new `baseplate.lib` API when available, fall back to the
-# older top-level `baseplate` layout for compatibility with older installs.
+# Prefer the new `baseplate` API when available (with Baseplate class).
+# Fall back to the older top-level `baseplate` layout for compatibility
+# with older installs that still provide `error_reporter_from_config`.
 try:
+    from baseplate import Baseplate
     from baseplate.lib import config as config
     from baseplate.lib.secrets import secrets_store_from_config
     from baseplate.lib.metrics import metrics_client_from_config
-    from baseplate.lib.error_reporter import error_reporter_from_config
+    _HAS_BASEPLATE_CLASS = True
 except Exception:
     from baseplate import (
         config,
@@ -17,6 +19,8 @@ except Exception:
         error_reporter_from_config,
     )
     from baseplate.lib.secrets import secrets_store_from_config
+    Baseplate = None
+    _HAS_BASEPLATE_CLASS = False
 
 from .dispatcher import MessageDispatcher
 from .socketserver import SocketServer
@@ -53,7 +57,23 @@ def make_app(raw_config):
     cfg = config.parse_config(raw_config, CONFIG_SPEC)
 
     metrics_client = metrics_client_from_config(raw_config)
-    error_reporter = error_reporter_from_config(raw_config, __name__)
+
+    # Configure error reporting / observability using the modern Baseplate
+    # `configure_observers()` when available. For older Baseplate versions
+    # that still expose `error_reporter_from_config`, fall back to that API.
+    error_reporter = None
+    if _HAS_BASEPLATE_CLASS and Baseplate is not None:
+        bp = Baseplate(raw_config)
+        bp.configure_observers()
+        # Try common locations for the configured error reporter.
+        error_reporter = getattr(bp, "error_reporter", None)
+        if error_reporter is None:
+            observers = getattr(bp, "observers", None) or {}
+            error_reporter = observers.get("error_reporter")
+    else:
+        # older API
+        error_reporter = error_reporter_from_config(raw_config, __name__)
+
     secrets = secrets_store_from_config(raw_config)
 
     dispatcher = MessageDispatcher(metrics=metrics_client)
