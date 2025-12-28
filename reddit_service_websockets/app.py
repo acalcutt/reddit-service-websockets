@@ -68,8 +68,15 @@ def make_app(raw_config):
         # Try common locations for the configured error reporter.
         error_reporter = getattr(bp, "error_reporter", None)
         if error_reporter is None:
-            observers = getattr(bp, "observers", None) or {}
-            error_reporter = observers.get("error_reporter")
+            observers = getattr(bp, "observers", None)
+            if isinstance(observers, dict):
+                error_reporter = observers.get("error_reporter")
+            elif isinstance(observers, list):
+                for o in observers:
+                    if getattr(o, "report_exception", None) is not None:
+                        error_reporter = o
+                        break
+        # fallback to None if still not found
     else:
         # older API
         error_reporter = error_reporter_from_config(raw_config, __name__)
