@@ -54,13 +54,22 @@ def make_app(raw_config):
         error_reporter = getattr(bp, "error_reporter", None)
         if error_reporter is None:
             observers = getattr(bp, "observers", None)
-            if isinstance(observers, dict):
-                error_reporter = observers.get("error_reporter")
-            elif isinstance(observers, list):
-                for o in observers:
-                    if getattr(o, "report_exception", None) is not None:
-                        error_reporter = o
-                        break
+            if observers is not None:
+                # Try mapping-like access first, but guard against
+                # unexpected types that may raise AttributeError.
+                try:
+                    error_reporter = observers.get("error_reporter")  # type: ignore[attr-defined]
+                except Exception:
+                    # Fallback: iterate and pick the first observer that
+                    # exposes a `report_exception` method.
+                    try:
+                        for o in observers:
+                            if getattr(o, "report_exception", None) is not None:
+                                error_reporter = o
+                                break
+                    except TypeError:
+                        # Not iterable; give up and leave error_reporter as None.
+                        error_reporter = None
     except Exception:
         import warnings
 
