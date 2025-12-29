@@ -3,24 +3,10 @@ import signal
 import gevent
 import manhole
 
-# Prefer the new `baseplate` API when available (with Baseplate class).
-# Fall back to the older top-level `baseplate` layout for compatibility
-# with older installs that still provide `error_reporter_from_config`.
-try:
-    from baseplate import Baseplate
-    from baseplate.lib import config as config
-    from baseplate.lib.secrets import secrets_store_from_config
-    from baseplate.lib.metrics import metrics_client_from_config
-    _HAS_BASEPLATE_CLASS = True
-except Exception:
-    from baseplate import (
-        config,
-        metrics_client_from_config,
-        error_reporter_from_config,
-    )
-    from baseplate.lib.secrets import secrets_store_from_config
-    Baseplate = None
-    _HAS_BASEPLATE_CLASS = False
+from baseplate import Baseplate
+from baseplate.lib import config
+from baseplate.lib.secrets import secrets_store_from_config
+from baseplate.lib.metrics import metrics_client_from_config
 
 from .dispatcher import MessageDispatcher
 from .socketserver import SocketServer
@@ -58,21 +44,40 @@ def make_app(raw_config):
 
     metrics_client = metrics_client_from_config(raw_config)
 
-    # Configure error reporting / observability using the modern Baseplate
-    # `configure_observers()` when available. For older Baseplate versions
-    # that still expose `error_reporter_from_config`, fall back to that API.
+    # Configure error reporting / observability using Baseplate's
+    # `configure_observers()` and surface the configured error reporter
+    # if one is present on the Baseplate instance.
     error_reporter = None
-    if _HAS_BASEPLATE_CLASS and Baseplate is not None:
-        bp = Baseplate(raw_config)
+    bp = Baseplate(raw_config)
+    try:
         bp.configure_observers()
-        # Try common locations for the configured error reporter.
         error_reporter = getattr(bp, "error_reporter", None)
         if error_reporter is None:
-            observers = getattr(bp, "observers", None) or {}
-            error_reporter = observers.get("error_reporter")
-    else:
-        # older API
-        error_reporter = error_reporter_from_config(raw_config, __name__)
+            observers = getattr(bp, "observers", None)
+            if observers is not None:
+                # Try mapping-like access first, but guard against
+                # unexpected types that may raise AttributeError.
+                try:
+                    error_reporter = observers.get("error_reporter")  # type: ignore[attr-defined]
+                except Exception:
+                    # Fallback: iterate and pick the first observer that
+                    # exposes a `report_exception` method.
+                    try:
+                        for o in observers:
+                            if getattr(o, "report_exception", None) is not None:
+                                error_reporter = o
+                                break
+                    except TypeError:
+                        # Not iterable; give up and leave error_reporter as None.
+                        error_reporter = None
+    except Exception:
+        import warnings
+
+        warnings.warn(
+            "Baseplate.configure_observers() failed; no error reporter configured",
+            RuntimeWarning,
+        )
+        error_reporter = None
 
     secrets = secrets_store_from_config(raw_config)
 
